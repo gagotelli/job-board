@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Board — Gerardo Gotelli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0D1117;
+    --panel:#151B23;
+    --panel-2:#1B232D;
+    --edge:#28323F;
+    --text:#E4E8EC;
+    --dim:#8A97A6;
+    --faint:#5A6675;
+    --live:#3FD68C;
+    --hold:#F2B33D;
+    --dead:#4A5563;
+    --link:#5CC8E8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    padding:0 20px 80px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+
+  header{
+    padding:40px 0 28px;
+    border-bottom:1px solid var(--edge);
+    margin-bottom:28px;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--faint);
+    margin-bottom:10px;
+  }
+  h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:clamp(30px,5vw,44px);
+    font-weight:700;
+    letter-spacing:-.02em;
+    line-height:1.05;
+  }
+  .sub{color:var(--dim);margin-top:10px;max-width:56ch;font-size:14px}
+
+  .counts{
+    display:flex;
+    flex-wrap:wrap;
+    gap:26px;
+    margin-top:24px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+  }
+  .count b{
+    display:block;
+    font-family:'Space Grotesk',sans-serif;
+    font-size:26px;
+    font-weight:700;
+    line-height:1.1;
+  }
+  .count span{color:var(--faint);letter-spacing:.1em;text-transform:uppercase;font-size:10px}
+  .c-live b{color:var(--live)}
+  .c-hold b{color:var(--hold)}
+  .c-dead b{color:var(--dead)}
+
+  .bar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+    margin-bottom:22px;
+  }
+  .filt{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.09em;
+    text-transform:uppercase;
+    background:transparent;
+    color:var(--dim);
+    border:1px solid var(--edge);
+    padding:7px 13px;
+    cursor:pointer;
+    border-radius:2px;
+    transition:.14s;
+  }
+  .filt:hover{color:var(--text);border-color:var(--faint)}
+  .filt[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
+  .spacer{flex:1}
+  .search{
+    background:var(--panel);
+    border:1px solid var(--edge);
+    color:var(--text);
+    padding:7px 12px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    border-radius:2px;
+    min-width:190px;
+  }
+  .search::placeholder{color:var(--faint)}
+  .search:focus{outline:2px solid var(--link);outline-offset:1px}
+
+  .daygroup{margin-bottom:34px}
+  .daylabel{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--faint);
+    padding-bottom:9px;
+    border-bottom:1px solid var(--edge);
+    margin-bottom:2px;
+    display:flex;
+    justify-content:space-between;
+  }
+
+  /* signature: patch-panel status rail down the left of every row */
+  .row{
+    display:grid;
+    grid-template-columns:4px 1fr auto;
+    gap:0 18px;
+    align-items:start;
+    background:var(--panel);
+    border-bottom:1px solid var(--ink);
+    padding:0;
+    transition:background .14s;
+  }
+  .row:hover{background:var(--panel-2)}
+  .rail{
+    width:4px;
+    align-self:stretch;
+    background:var(--dead);
+    transition:background .18s, box-shadow .18s;
+  }
+  .row[data-s="apply"] .rail{background:var(--live);box-shadow:0 0 11px -1px var(--live)}
+  .row[data-s="maybe"] .rail{background:var(--hold);box-shadow:0 0 11px -1px var(--hold)}
+  .row[data-s="applied"] .rail{background:var(--link);box-shadow:0 0 11px -1px var(--link)}
+  .row[data-s="skip"] .rail{background:var(--dead)}
+  .row[data-s="skip"] .body{opacity:.5}
+
+  .body{padding:15px 0 15px 2px;min-width:0}
+  .title{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:500;
+    font-size:16.5px;
+    letter-spacing:-.01em;
+  }
+  .title a{color:var(--text);text-decoration:none;border-bottom:1px solid transparent}
+  .title a:hover{color:var(--link);border-bottom-color:var(--link)}
+  .title a:focus-visible{outline:2px solid var(--link);outline-offset:3px}
+  .meta{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    color:var(--dim);
+    margin-top:5px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px 12px;
+  }
+  .meta .co{color:var(--text)}
+  .cv{color:var(--link)}
+  .note{color:var(--dim);font-size:13.5px;margin-top:7px;max-width:74ch}
+
+  .acts{display:flex;gap:5px;padding:15px 16px 15px 0;flex-shrink:0}
+  .act{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    background:transparent;
+    border:1px solid var(--edge);
+    color:var(--faint);
+    padding:5px 9px;
+    cursor:pointer;
+    border-radius:2px;
+    transition:.14s;
+  }
+  .act:hover{color:var(--text);border-color:var(--faint)}
+  .act[aria-pressed="true"]{color:var(--ink);background:var(--text);border-color:var(--text)}
+  .row[data-s="applied"] .act.a-applied[aria-pressed="true"]{background:var(--link);border-color:var(--link)}
+  .row[data-s="skip"] .act.a-skip[aria-pressed="true"]{background:var(--dead);border-color:var(--dead);color:var(--text)}
+
+  .empty{
+    padding:52px 20px;
+    text-align:center;
+    color:var(--faint);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    border:1px dashed var(--edge);
+  }
+  footer{
+    margin-top:44px;
+    padding-top:20px;
+    border-top:1px solid var(--edge);
+    color:var(--faint);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    justify-content:space-between;
+  }
+  footer button{
+    background:none;border:none;color:var(--faint);
+    font:inherit;cursor:pointer;text-decoration:underline;
+  }
+  footer button:hover{color:var(--text)}
+
+  @media (max-width:720px){
+    .row{grid-template-columns:4px 1fr}
+    .acts{grid-column:2;padding:0 0 14px 2px}
+    .body{padding-bottom:9px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Sydney &amp; Queensland · ICT / Network / Delivery</div>
+  <h1>Job board</h1>
+  <p class="sub">Roles found on the daily search, with the CV to send and where each one stands. Status is saved in this browser.</p>
+  <div class="counts">
+    <div class="count c-live"><b id="n-apply">0</b><span>Worth applying</span></div>
+    <div class="count c-hold"><b id="n-maybe">0</b><span>Maybe</span></div>
+    <div class="count"><b id="n-applied" style="color:var(--link)">0</b><span>Applied</span></div>
+    <div class="count c-dead"><b id="n-skip">0</b><span>Skipped</span></div>
+  </div>
+</header>
+
+<div class="bar">
+  <button class="filt" data-f="all" aria-pressed="true">All</button>
+  <button class="filt" data-f="apply" aria-pressed="false">Worth applying</button>
+  <button class="filt" data-f="maybe" aria-pressed="false">Maybe</button>
+  <button class="filt" data-f="applied" aria-pressed="false">Applied</button>
+  <button class="filt" data-f="skip" aria-pressed="false">Skipped</button>
+  <span class="spacer"></span>
+  <input class="search" id="q" type="search" placeholder="filter by title, company…" aria-label="Filter jobs">
+</div>
+
+<main id="list"></main>
+
+<footer>
+  <span id="stamp"></span>
+  <button id="reset">Reset all statuses</button>
+</footer>
+
+</div>
+
+<script>
+const JOBS = [
+  // ---- 5 Aug 2026 ----
+  {d:"2026-08-05",t:"Service Delivery Manager",c:"Kinetic IT",l:"Sydney · Hybrid",u:"https://www.seek.com.au/job/93766598",cv:"Aug 2026",s:"apply",n:"Managed services provider. ITIL service desk, SLAs, governance meetings, commercial reporting. Fits the move toward delivery and IT management."},
+  {d:"2026-08-05",t:"Systems & Network Engineer (Project Services)",c:"Humanised Group",l:"Brisbane QLD · Hybrid",u:"https://www.seek.com.au/job/93765955",cv:"Q3 2026",s:"apply",n:"MSP delivering end-to-end infrastructure projects. Fortinet, Cisco Meraki, Azure, M365. Up to $125k + super, below the $150k relocation threshold."},
+  {d:"2026-08-05",t:"PMO Lead",c:"Ericsson",l:"Sydney",u:"https://www.seek.com.au/job/93744675",cv:"Aug 2026",s:"maybe",n:"Telecom transformation programs, 5G core and cloud. Strong industry fit but asks for 8+ years specifically in PMO or program controls."},
+  {d:"2026-08-05",t:"Manager Critical Infrastructure",c:"NBN",l:"Sydney",u:"https://www.seek.com.au/job/93746590",cv:"Aug 2026",s:"maybe",n:"Telecom sector, management title. Full description not reviewed yet."},
+  {d:"2026-08-05",t:"National Operations Centre Engineer",c:"I-MED Radiology Network",l:"Sydney",u:"https://www.seek.com.au/job/93752226",cv:"Q3 2026",s:"maybe",n:"NOC-style operations role in healthcare. Worth reading in full."},
+  {d:"2026-08-05",t:"Senior Project Manager — Infrastructure",c:"SustainRecruit",l:"Sydney",u:"https://www.seek.com.au/job/93753259",cv:"Aug 2026",s:"maybe",n:"Infrastructure project delivery, lines up with the direction you want."},
+  {d:"2026-08-05",t:"Director of Technical Customer Support",c:"Troocoo",l:"Sydney",u:"https://www.seek.com.au/job/93766383",cv:"Aug 2026",s:"maybe",n:"Management-level title. Check the scope before committing time."},
+  {d:"2026-08-05",t:"IT Change Analyst",c:"Mackay Executive",l:"Sydney",u:"https://www.seek.com.au/job/93739342",cv:"Aug 2026",s:"maybe",n:"Change management, adjacent to project delivery."},
+  {d:"2026-08-05",t:"Senior Cloud Administrator",c:"NSW Trustee and Guardian",l:"Sydney",u:"https://www.seek.com.au/job/93747452",cv:"Q3 2026",s:"maybe",n:"Government sector cloud administration."},
+  {d:"2026-08-05",t:"IT and Solutions Executive",c:"Mamamia",l:"Sydney",u:"https://www.seek.com.au/job/93761935",cv:"Aug 2026",s:"maybe",n:"Media company. Solutions in the title, scope unclear until read."},
+  {d:"2026-08-05",t:"IT SYSTEMS & NETWORK ENGINEER",c:"Fibrecycle",l:"Helensvale, Gold Coast QLD",u:"https://www.seek.com.au/job/93745484",cv:"Q3 2026",s:"maybe",n:"Direct title match. Full description not reviewed yet."},
+  {d:"2026-08-05",t:"Cloud Engineer",c:"Sime",l:"Archerfield, Brisbane QLD",u:"https://www.seek.com.au/job/93750555",cv:"Q3 2026",s:"maybe",n:"Cloud and infrastructure engineering."},
+  {d:"2026-08-05",t:"Site Reliability Manager (Applications)",c:"Robert Half",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93738647",cv:"Aug 2026",s:"maybe",n:"Management title, applications focus."},
+  {d:"2026-08-05",t:"Application Services Lead",c:"Concentis",l:"Gladstone & Central QLD",u:"https://www.seek.com.au/job/93765711",cv:"Aug 2026",s:"maybe",n:"Regional Queensland, leadership title."},
+  {d:"2026-08-05",t:"Cyber Security Project Manager",c:"Peoplebank QLD",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93750741",cv:"Aug 2026",s:"maybe",n:"Project delivery angle, but cyber-specific domain knowledge expected."},
+  {d:"2026-08-05",t:"IT Commercial Solutions Project Analyst",c:"Holcim",l:"Milton, Brisbane QLD",u:"https://www.seek.com.au/job/93750105",cv:"Aug 2026",s:"maybe",n:"Solutions and project work, commercial slant."},
+  {d:"2026-08-05",t:"Technology Services Commercial Lead",c:"Stanmore Resources",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93766236",cv:"Aug 2026",s:"maybe",n:"Commercial and vendor management lead."},
+  {d:"2026-08-05",t:"IT Operations — Internal Systems & Infrastructure",c:"Box Advisory Services",l:"North Parramatta, Sydney",u:"https://www.seek.com.au/job/93761996",cv:"Aug 2026",s:"applied",n:"Applied 5 Aug. Bringing IT in-house off an external MSP, ~50 endpoints, M365 and Intune. $95k–$110k + super."},
+  {d:"2026-08-05",t:"L4 Senior Network Engineer",c:"FinXL",l:"Sydney",u:"https://www.seek.com.au/job/93752167",cv:"Q3 2026",s:"skip",n:"Needs HLD/LLD design plus ACI, NSX and SDA. Outside the design/architecture scope you've ruled out."},
+  {d:"2026-08-05",t:"Network & Systems Engineer",c:"Respect Group",l:"Sydney · Hybrid",u:"https://www.seek.com.au/job/93767575",cv:"Q3 2026",s:"skip",n:"Title is misleading. Requirements are aged-care sector specific: Aged Care Act, resident experience, national program rollout."},
+  {d:"2026-08-05",t:"Network & Systems Engineer",c:"Respect Group",l:"Cairns QLD",u:"https://www.seek.com.au/job/93767576",cv:"Q3 2026",s:"skip",n:"Same listing as the Sydney one, same sector-specific requirements."},
+  {d:"2026-08-05",t:"Network Operations Engineer",c:"Megaport",l:"Brisbane QLD · Hybrid",u:"https://www.seek.com.au/job/93765733",cv:"Q3 2026",s:"skip",n:"Heavy ISIS, BGP, MPLS traffic engineering, DWDM and ROADM. Deep carrier-network specialism."},
+  {d:"2026-08-05",t:"Network Engineer (OT Wireless)",c:"Peoplebank QLD",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93751542",cv:"Q3 2026",s:"skip",n:"Mining operational technology wireless, Rajant mesh, site travel. $900–$1,100/day if the FIFO element ever appeals."},
+  {d:"2026-08-05",t:"Senior Infrastructure Automation Engineer (RHEL & Puppet)",c:"Talenza",l:"Sydney",u:"https://www.seek.com.au/job/93764798",cv:"Q3 2026",s:"skip",n:"Linux automation and configuration management specialism."},
+  {d:"2026-08-05",t:"Solution Architect — Financial Services",c:"Pathway Search",l:"Sydney",u:"https://www.seek.com.au/job/93740351",cv:"Aug 2026",s:"skip",n:"Architect-level design work in a financial services domain."},
+  {d:"2026-08-05",t:"Senior Solution Architect — IDAM",c:"Western Sydney University",l:"Parramatta, Sydney",u:"https://www.seek.com.au/job/93739278",cv:"Q3 2026",s:"skip",n:"Identity and access management architecture specialism."},
+  {d:"2026-08-05",t:"Lead Identity Architect",c:"UNSW",l:"Kensington, Sydney",u:"https://www.seek.com.au/job/93741461",cv:"Q3 2026",s:"skip",n:"IDAM specialism."},
+  {d:"2026-08-05",t:"Site Reliability Engineer",c:"ASX",l:"Sydney",u:"https://www.seek.com.au/job/93760034",cv:"Q3 2026",s:"skip",n:"SRE and DevOps toolchain, different skill set."},
+  {d:"2026-08-05",t:"Lead Systems Engineer (Audio)",c:"NW Group",l:"Sydney",u:"https://www.seek.com.au/job/93766569",cv:"Q3 2026",s:"skip",n:"AV and audio systems, not a networking role despite the title."},
+  {d:"2026-08-05",t:"Product Support Engineer",c:"Plenti",l:"Sydney",u:"https://www.seek.com.au/job/93764840",cv:"Q3 2026",s:"skip",n:"Fintech product support rather than infrastructure."},
+  {d:"2026-08-05",t:"AI Technical Lead DevOps",c:"Allianz",l:"Sydney",u:"https://www.seek.com.au/job/93740326",cv:"Q3 2026",s:"skip",n:"DevOps and AI platform specialism."},
+  {d:"2026-08-05",t:"Practice Customer Engineer, App Modernization",c:"Google",l:"Sydney",u:"https://www.seek.com.au/job/93759699",cv:"Aug 2026",s:"skip",n:"Application modernization, not networking."},
+  {d:"2026-08-05",t:"Citrix Engineer",c:"Randstad Digital",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93738704",cv:"Q3 2026",s:"skip",n:"Citrix specialism, narrow fit."},
+  {d:"2026-08-05",t:"Solution Architect",c:"Sharp & Carter",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93752251",cv:"Aug 2026",s:"skip",n:"Architect-level design role."},
+  {d:"2026-08-05",t:"Service Design Architect",c:"Peoplebank QLD",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93740705",cv:"Aug 2026",s:"skip",n:"Service design architecture specialism. Also listed by Randstad and Capital Talent."},
+  {d:"2026-08-05",t:"Service Design Architect",c:"Randstad Digital",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93746317",cv:"Aug 2026",s:"skip",n:"Duplicate of the Peoplebank listing."},
+  {d:"2026-08-05",t:"Service Design Architect (2 roles)",c:"Capital Talent Consulting",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93746460",cv:"Aug 2026",s:"skip",n:"Duplicate of the Peoplebank listing."},
+
+  // ---- 4 Aug 2026 ----
+  {d:"2026-08-04",t:"Program Manager",c:"Talent International",l:"North Sydney · Hybrid",u:"https://www.seek.com.au/job/93746889",cv:"Aug 2026",s:"apply",n:"9-month contract, up to $1,040/day inc super. Networking and telecom delivery experience preferred, PMP regarded not required."},
+  {d:"2026-08-04",t:"Manager Enterprise Applications (24-mth FTC)",c:"BAI Communications",l:"North Sydney · Hybrid",u:"https://www.seek.com.au/job/93740501",cv:"Aug 2026",s:"apply",n:"Telecommunications and broadcast. Blends people leadership with application delivery and vendor management."},
+  {d:"2026-08-04",t:"YOS Meraki Engineer",c:"Burgeon IT Services",l:"Sydney · Hybrid",u:"https://www.linkedin.com/jobs/view/4446606552/",cv:"Q3 2026",s:"apply",n:"LinkedIn listing, contract. Direct match to the Meraki estate work. Description would not load without signing in."},
+  {d:"2026-08-04",t:"Senior IT Project Manager — HRIS",c:"Australian Red Cross",l:"Sydney · Hybrid",u:"https://www.seek.com.au/job/93735549",cv:"Aug 2026",s:"skip",n:"Wants HRIS, HCM or payroll implementation experience plus PMBOK or PRINCE2. Closes 18 Aug."},
+  {d:"2026-08-04",t:"Enterprise Applications Program Manager",c:"Precision Sourcing",l:"Sydney · Hybrid",u:"https://www.seek.com.au/job/93742034",cv:"Aug 2026",s:"skip",n:"$1,274/day but the ad explicitly rules out program managers from infrastructure or network backgrounds."},
+  {d:"2026-08-04",t:"IT Project Manager — ERP",c:"West Recruitment",l:"Blacktown, Sydney",u:"https://www.seek.com.au/job/93730717",cv:"Aug 2026",s:"skip",n:"Pronto XI ERP implementation, onsite five days a week in Blacktown."},
+  {d:"2026-08-04",t:"Implementation Manager (Financial Advice Tech)",c:"Allura Partners",l:"Brisbane QLD · Hybrid",u:"https://www.seek.com.au/job/93737840",cv:"Aug 2026",s:"skip",n:"Package up to $170k but needs an Australian financial advice background."},
+
+  // ---- 3 Aug 2026 ----
+  {d:"2026-08-03",t:"Technical Delivery Manager",c:"INDEX Consultants",l:"Sydney",u:"https://www.seek.com.au/job/93721506",cv:"Aug 2026",s:"apply",n:"From the 3 Aug shortlist."},
+  {d:"2026-08-03",t:"ICT Project Manager",c:"Applied Business Technology (ABT Group)",l:"Sydney",u:"https://www.seek.com.au/job/93719564",cv:"Aug 2026",s:"apply",n:"$95k–$115k. Also listed on Indeed."},
+  {d:"2026-08-03",t:"Client Implementation Manager",c:"Ralston Recruitment",l:"Sydney CBD",u:"https://www.seek.com.au/job/93710412",cv:"Aug 2026",s:"apply",n:"Leads customer implementations and a small team of implementation consultants."},
+  {d:"2026-08-03",t:"Director of IT Service Delivery and Experience",c:"Knox Grammar School",l:"Sydney",u:"https://www.seek.com.au/job/93708675",cv:"Aug 2026",s:"apply",n:"School sector, which matches the SACS background directly."},
+  {d:"2026-08-03",t:"Head of IT APAC",c:"Reddam House",l:"Sydney",u:"https://www.seek.com.au/job/93722594",cv:"Aug 2026",s:"apply",n:"School sector leadership role."},
+  {d:"2026-08-03",t:"Senior Network Engineer",c:"VISGLOBAL",l:"Sydney",u:"https://www.seek.com.au/job/93718706",cv:"Q3 2026",s:"maybe",n:"From the 3 Aug expanded network engineer search."},
+  {d:"2026-08-03",t:"Senior Network Engineer",c:"Hamilton Barnes",l:"Sydney",u:"https://www.seek.com.au/job/93717956",cv:"Q3 2026",s:"maybe",n:"From the 3 Aug expanded network engineer search."},
+  {d:"2026-08-03",t:"Network Engineer",c:"Prospex Recruiting",l:"Sydney",u:"https://www.seek.com.au/job/93720647",cv:"Q3 2026",s:"maybe",n:"From the 3 Aug expanded network engineer search."},
+  {d:"2026-08-03",t:"Senior Infrastructure Engineer",c:"Lindsay Australia",l:"Queensland",u:"https://www.seek.com.au/job/93720273",cv:"Q3 2026",s:"maybe",n:"$135k–$160k depending on the listing. Duplicated across several Seek ads."},
+  {d:"2026-08-03",t:"Principal Telecoms Network Engineer (Queensland Rail)",c:"Randstad",l:"Queensland",u:"https://www.seek.com.au/job/93603194",cv:"Q3 2026",s:"maybe",n:"Queensland Rail via Randstad."},
+  {d:"2026-08-03",t:"Principal Systems Engineer (Queensland Rail)",c:"Randstad",l:"Queensland",u:"https://www.seek.com.au/job/93603339",cv:"Q3 2026",s:"maybe",n:"Queensland Rail via Randstad."},
+  {d:"2026-08-03",t:"Project and Solutions Engineer",c:"Power On Australia",l:"Queensland",u:"https://www.seek.com.au/job/93645563",cv:"Aug 2026",s:"maybe",n:"$90k–$130k. Project and solutions delivery."},
+  {d:"2026-08-03",t:"Customer Solutions Engineer",c:"Macquarie Technology Group",l:"Sydney",u:"https://www.seek.com.au/job/93671129",cv:"Aug 2026",s:"applied",n:"Applied previously. Reappeared in the 3 Aug search as a duplicate."}
+];
+
+const LABEL = {apply:"Worth applying", maybe:"Maybe", applied:"Applied", skip:"Skipped"};
+const KEY = "gg-jobboard-v1";
+
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e) { saved = {}; }
+
+const persist = () => {
+  try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch(e) {}
+};
+
+const idOf = j => j.u + "::" + j.t;
+const stateOf = j => saved[idOf(j)] || j.s;
+
+let filter = "all", query = "";
+
+const fmtDay = iso => {
+  const dt = new Date(iso + "T00:00:00");
+  return dt.toLocaleDateString("en-AU", {weekday:"long", day:"numeric", month:"long"});
+};
+
+function render(){
+  const list = document.getElementById("list");
+  const tally = {apply:0, maybe:0, applied:0, skip:0};
+  JOBS.forEach(j => tally[stateOf(j)]++);
+  document.getElementById("n-apply").textContent = tally.apply;
+  document.getElementById("n-maybe").textContent = tally.maybe;
+  document.getElementById("n-applied").textContent = tally.applied;
+  document.getElementById("n-skip").textContent = tally.skip;
+
+  const q = query.trim().toLowerCase();
+  const shown = JOBS.filter(j => {
+    if (filter !== "all" && stateOf(j) !== filter) return false;
+    if (q && !(j.t + " " + j.c + " " + j.l).toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  if (!shown.length){
+    list.innerHTML = '<p class="empty">Nothing matches that filter. Clear the search or pick another status.</p>';
+    return;
+  }
+
+  const days = [...new Set(shown.map(j => j.d))].sort().reverse();
+  list.innerHTML = days.map(day => {
+    const rows = shown.filter(j => j.d === day).map(j => {
+      const st = stateOf(j);
+      const btn = (k, txt) =>
+        `<button class="act a-${k}" data-id="${encodeURIComponent(idOf(j))}" data-set="${k}" aria-pressed="${st===k}">${txt}</button>`;
+      return `<article class="row" data-s="${st}">
+        <div class="rail"></div>
+        <div class="body">
+          <h3 class="title"><a href="${j.u}" target="_blank" rel="noopener">${j.t}</a></h3>
+          <div class="meta">
+            <span class="co">${j.c}</span><span>${j.l}</span><span class="cv">CV: ${j.cv}</span>
+          </div>
+          <p class="note">${j.n}</p>
+        </div>
+        <div class="acts">${btn("applied","Applied")}${btn("maybe","Maybe")}${btn("skip","Skip")}</div>
+      </article>`;
+    }).join("");
+    const n = shown.filter(j => j.d === day).length;
+    return `<section class="daygroup">
+      <div class="daylabel"><span>${fmtDay(day)}</span><span>${n} role${n===1?"":"s"}</span></div>
+      ${rows}
+    </section>`;
+  }).join("");
+}
+
+document.getElementById("list").addEventListener("click", e => {
+  const b = e.target.closest(".act");
+  if (!b) return;
+  const id = decodeURIComponent(b.dataset.id), want = b.dataset.set;
+  const job = JOBS.find(j => idOf(j) === id);
+  if (!job) return;
+  saved[id] = (stateOf(job) === want) ? job.s : want;
+  persist();
+  render();
+});
+
+document.querySelectorAll(".filt").forEach(b => {
+  b.addEventListener("click", () => {
+    filter = b.dataset.f;
+    document.querySelectorAll(".filt").forEach(x => x.setAttribute("aria-pressed", x === b));
+    render();
+  });
+});
+
+document.getElementById("q").addEventListener("input", e => { query = e.target.value; render(); });
+
+document.getElementById("reset").addEventListener("click", () => {
+  saved = {}; persist(); render();
+});
+
+document.getElementById("stamp").textContent =
+  JOBS.length + " roles tracked · last search " + fmtDay("2026-08-05");
+
+render();
+</script>
+</body>
+</html>
