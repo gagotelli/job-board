@@ -1,14 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Job Board — Gerardo Gotelli</title>
+<script>
+/* Resolve the theme before first paint so there is no flash of the wrong palette. */
+(function(){
+  var pref = "auto";
+  try { pref = localStorage.getItem("gg-jobboard-theme-v1") || "auto"; } catch(e) {}
+  var light = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+  document.documentElement.setAttribute("data-theme", pref === "auto" ? (light ? "light" : "dark") : pref);
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root{
+  :root, :root[data-theme="dark"]{
+    color-scheme:dark;
     --ink:#0D1117;
     --panel:#151B23;
     --panel-2:#1B232D;
@@ -20,6 +30,32 @@
     --hold:#F2B33D;
     --dead:#4A5563;
     --link:#5CC8E8;
+    --glow-live:0 0 11px -1px #3FD68C;
+    --glow-hold:0 0 11px -1px #F2B33D;
+    --glow-link:0 0 11px -1px #5CC8E8;
+    --skip-fade:.5;
+    --lift:none;
+    --on-accent:#0D1117;
+  }
+  :root[data-theme="light"]{
+    color-scheme:light;
+    --ink:#F2F5F8;
+    --panel:#FFFFFF;
+    --panel-2:#E9EEF4;
+    --edge:#D2DAE3;
+    --text:#101820;
+    --dim:#4F5B69;
+    --faint:#6B7784;
+    --live:#0F8F55;
+    --hold:#9A6508;
+    --dead:#AEB8C2;
+    --link:#0A6C88;
+    --glow-live:none;
+    --glow-hold:none;
+    --glow-link:none;
+    --skip-fade:.55;
+    --lift:0 1px 2px rgba(16,24,32,.06);
+    --on-accent:#FFFFFF;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
@@ -31,9 +67,124 @@
     padding:0 20px 80px;
   }
   .wrap{max-width:1180px;margin:0 auto}
+  [hidden]{display:none!important}
+
+  /* ---- top bar: who is signed in, plus the theme switch ---- */
+  .topbar{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    padding:14px 0 0;
+  }
+  .account{display:flex;align-items:center;gap:9px}
+  .avatar{
+    width:30px;height:30px;flex-shrink:0;
+    display:grid;place-items:center;
+    border-radius:50%;
+    background:var(--panel-2);
+    border:1px solid var(--edge);
+    font-family:'Space Grotesk',sans-serif;
+    font-size:11.5px;font-weight:700;
+    color:var(--text);
+  }
+  .who{display:flex;flex-direction:column;line-height:1.2}
+  .who b{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500}
+  .who span{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--faint);
+  }
+  .ghost{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+    background:transparent;color:var(--faint);
+    border:1px solid var(--edge);
+    padding:5px 9px;border-radius:2px;cursor:pointer;
+    transition:.14s;
+  }
+  .ghost:hover{color:var(--text);border-color:var(--faint)}
+  .sep{width:1px;align-self:stretch;background:var(--edge);margin:0 3px}
+  .themer{display:flex;border:1px solid var(--edge);border-radius:2px;overflow:hidden}
+  .th{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+    background:transparent;color:var(--faint);
+    border:none;border-right:1px solid var(--edge);
+    padding:6px 10px;cursor:pointer;transition:.14s;
+  }
+  .th:last-child{border-right:none}
+  .th:hover{color:var(--text)}
+  .th[aria-pressed="true"]{background:var(--text);color:var(--ink)}
+  .th:focus-visible,.ghost:focus-visible{outline:2px solid var(--link);outline-offset:1px}
+
+  /* ---- sign-in gate ---- */
+  .gate{
+    min-height:calc(100vh - 150px);
+    display:grid;
+    place-items:center;
+    padding:30px 0;
+  }
+  .gatecard{
+    width:100%;max-width:370px;
+    background:var(--panel);
+    border:1px solid var(--edge);
+    border-radius:3px;
+    box-shadow:var(--lift);
+    padding:30px 28px 24px;
+  }
+  .gatecard h2{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:27px;font-weight:700;letter-spacing:-.02em;line-height:1.1;
+  }
+  .gsub{color:var(--dim);font-size:13px;margin-top:7px}
+  .gatecard label{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--faint);
+    margin:18px 0 6px;
+  }
+  .gatecard input{
+    width:100%;
+    background:var(--ink);
+    border:1px solid var(--edge);
+    color:var(--text);
+    padding:9px 11px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    border-radius:2px;
+  }
+  .gatecard input:focus{outline:2px solid var(--link);outline-offset:1px}
+  .gatecard button[type=submit]{
+    width:100%;margin-top:22px;
+    background:var(--text);color:var(--ink);
+    border:1px solid var(--text);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+    padding:10px;border-radius:2px;cursor:pointer;transition:.14s;
+  }
+  .gatecard button[type=submit]:hover:not(:disabled){opacity:.85}
+  .gatecard button[type=submit]:disabled{opacity:.5;cursor:progress}
+  .err{
+    color:var(--hold);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    margin-top:13px;
+  }
+  .warn{
+    color:var(--faint);
+    font-size:11.5px;
+    line-height:1.45;
+    margin-top:20px;
+    padding-top:15px;
+    border-top:1px solid var(--edge);
+  }
+  .warn b{color:var(--dim)}
 
   header{
-    padding:40px 0 28px;
+    padding:26px 0 28px;
     border-bottom:1px solid var(--edge);
     margin-bottom:28px;
   }
@@ -72,6 +223,7 @@
   .count span{color:var(--faint);letter-spacing:.1em;text-transform:uppercase;font-size:10px}
   .c-live b{color:var(--live)}
   .c-hold b{color:var(--hold)}
+  .c-app  b{color:var(--link)}
   .c-dead b{color:var(--dead)}
 
   .bar{
@@ -142,11 +294,11 @@
     background:var(--dead);
     transition:background .18s, box-shadow .18s;
   }
-  .row[data-s="apply"] .rail{background:var(--live);box-shadow:0 0 11px -1px var(--live)}
-  .row[data-s="maybe"] .rail{background:var(--hold);box-shadow:0 0 11px -1px var(--hold)}
-  .row[data-s="applied"] .rail{background:var(--link);box-shadow:0 0 11px -1px var(--link)}
-  .row[data-s="skip"] .rail{background:var(--dead)}
-  .row[data-s="skip"] .body{opacity:.5}
+  .row[data-s="apply"]   .rail{background:var(--live);box-shadow:var(--glow-live)}
+  .row[data-s="maybe"]   .rail{background:var(--hold);box-shadow:var(--glow-hold)}
+  .row[data-s="applied"] .rail{background:var(--link);box-shadow:var(--glow-link)}
+  .row[data-s="skip"]    .rail{background:var(--dead)}
+  .row[data-s="skip"] .body{opacity:var(--skip-fade)}
 
   .body{padding:15px 0 15px 2px;min-width:0}
   .title{
@@ -187,8 +339,8 @@
   }
   .act:hover{color:var(--text);border-color:var(--faint)}
   .act[aria-pressed="true"]{color:var(--ink);background:var(--text);border-color:var(--text)}
-  .row[data-s="applied"] .act.a-applied[aria-pressed="true"]{background:var(--link);border-color:var(--link)}
-  .row[data-s="skip"] .act.a-skip[aria-pressed="true"]{background:var(--dead);border-color:var(--dead);color:var(--text)}
+  .row[data-s="applied"] .act.a-applied[aria-pressed="true"]{background:var(--link);border-color:var(--link);color:var(--on-accent)}
+  .row[data-s="skip"] .act.a-skip[aria-pressed="true"]{background:var(--dead);border-color:var(--dead);color:var(--ink)}
 
   .empty{
     padding:52px 20px;
@@ -220,12 +372,48 @@
     .row{grid-template-columns:4px 1fr}
     .acts{grid-column:2;padding:0 0 14px 2px}
     .body{padding-bottom:9px}
+    .topbar{justify-content:space-between}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <div class="wrap">
+
+<div class="topbar">
+  <div class="account" id="account" hidden>
+    <span class="avatar">GG</span>
+    <span class="who"><b id="who-name">gagotelli</b><span>Signed in</span></span>
+    <button class="ghost" id="signout">Sign out</button>
+  </div>
+  <span class="sep" id="sep" hidden></span>
+  <div class="themer" role="group" aria-label="Colour theme">
+    <button class="th" data-t="auto"  aria-pressed="true">Auto</button>
+    <button class="th" data-t="light" aria-pressed="false">Light</button>
+    <button class="th" data-t="dark"  aria-pressed="false">Dark</button>
+  </div>
+</div>
+
+<div class="gate" id="gate" hidden>
+  <form class="gatecard" id="loginform">
+    <div class="eyebrow">Sydney &amp; Queensland · ICT</div>
+    <h2>Job board</h2>
+    <p class="gsub">Sign in to pick the search up where you left off.</p>
+
+    <label for="u">Username</label>
+    <input id="u" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+
+    <label for="p">Password</label>
+    <input id="p" name="password" type="password" autocomplete="current-password" required>
+
+    <button type="submit" id="go">Sign in</button>
+    <p class="err" id="err" role="alert" hidden></p>
+
+    <p class="warn"><b>This is not a security boundary.</b> The page is a single static file and the whole job list sits in its source, readable by anyone who opens it. Treat the sign-in as a convenience gate, nothing more.</p>
+  </form>
+</div>
+
+<div id="app" hidden>
 
 <header>
   <div class="eyebrow">Sydney &amp; Queensland · ICT / Network / Delivery</div>
@@ -234,7 +422,7 @@
   <div class="counts">
     <div class="count c-live"><b id="n-apply">0</b><span>Worth applying</span></div>
     <div class="count c-hold"><b id="n-maybe">0</b><span>Maybe</span></div>
-    <div class="count"><b id="n-applied" style="color:var(--link)">0</b><span>Applied</span></div>
+    <div class="count c-app"><b id="n-applied">0</b><span>Applied</span></div>
     <div class="count c-dead"><b id="n-skip">0</b><span>Skipped</span></div>
   </div>
 </header>
@@ -256,6 +444,7 @@
   <button id="reset">Reset all statuses</button>
 </footer>
 
+</div>
 </div>
 
 <script>
@@ -327,6 +516,133 @@ const JOBS = [
 const LABEL = {apply:"Worth applying", maybe:"Maybe", applied:"Applied", skip:"Skipped"};
 const KEY = "gg-jobboard-v1";
 
+/* ---------------------------------------------------------------
+   Theme. The stored preference is auto | light | dark; "auto"
+   follows the OS. The *resolved* value goes on <html data-theme>,
+   so the stylesheet only needs two token blocks.
+   --------------------------------------------------------------- */
+const THEME_KEY = "gg-jobboard-theme-v1";
+const mqLight = window.matchMedia("(prefers-color-scheme: light)");
+let themePref = "auto";
+try { themePref = localStorage.getItem(THEME_KEY) || "auto"; } catch(e) {}
+
+function applyTheme(){
+  const resolved = themePref === "auto" ? (mqLight.matches ? "light" : "dark") : themePref;
+  document.documentElement.setAttribute("data-theme", resolved);
+  document.querySelectorAll(".th").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.t === themePref))
+  );
+}
+
+document.querySelectorAll(".th").forEach(b => {
+  b.addEventListener("click", () => {
+    themePref = b.dataset.t;
+    try { localStorage.setItem(THEME_KEY, themePref); } catch(e) {}
+    applyTheme();
+  });
+});
+mqLight.addEventListener("change", () => { if (themePref === "auto") applyTheme(); });
+applyTheme();
+
+/* ---------------------------------------------------------------
+   Sign-in gate. Only a PBKDF2-SHA256 digest of the password lives
+   here, which keeps the plaintext out of the repo — but it does not
+   make the page private. Every job below is in this file's source
+   whether or not anyone signs in.
+   --------------------------------------------------------------- */
+const AUTH_KEY = "gg-jobboard-auth-v1";
+const USER     = "gagotelli";
+const SALT_HEX = "b220f10e3d77387c0014830147b530c1";
+const HASH_B64 = "XKBzZ8ME/Gn+UAZD7xnVVEkDH6aZ0R3kvXHEpYTNuko=";
+const ITER     = 250000;
+const MAX_AGE  = 30 * 24 * 60 * 60 * 1000; // stay signed in for 30 days
+
+const gate    = document.getElementById("gate");
+const app     = document.getElementById("app");
+const account = document.getElementById("account");
+const sepEl   = document.getElementById("sep");
+const errEl   = document.getElementById("err");
+const goBtn   = document.getElementById("go");
+
+const hexBytes = h => {
+  const out = new Uint8Array(h.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(h.substr(i * 2, 2), 16);
+  return out;
+};
+
+async function digest(pw){
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {name:"PBKDF2", salt:hexBytes(SALT_HEX), iterations:ITER, hash:"SHA-256"}, key, 256
+  );
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(bits)));
+}
+
+function showApp(){
+  gate.hidden = true;
+  app.hidden = false;
+  account.hidden = false;
+  sepEl.hidden = false;
+  render();
+}
+
+function showGate(){
+  app.hidden = true;
+  account.hidden = true;
+  sepEl.hidden = true;
+  gate.hidden = false;
+  document.getElementById("p").value = "";
+}
+
+function sessionValid(){
+  try {
+    const s = JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
+    return !!s && s.u === USER && (Date.now() - s.t) < MAX_AGE;
+  } catch(e) { return false; }
+}
+
+document.getElementById("loginform").addEventListener("submit", async e => {
+  e.preventDefault();
+  errEl.hidden = true;
+
+  if (!window.crypto || !crypto.subtle) {
+    errEl.textContent = "Sign-in needs a secure context — open the page over https:// rather than as a local file.";
+    errEl.hidden = false;
+    return;
+  }
+
+  const u = document.getElementById("u").value.trim().toLowerCase();
+  const p = document.getElementById("p").value;
+
+  goBtn.disabled = true;
+  goBtn.textContent = "Checking…";
+  try {
+    if (u === USER && (await digest(p)) === HASH_B64) {
+      try { localStorage.setItem(AUTH_KEY, JSON.stringify({u:USER, t:Date.now()})); } catch(e) {}
+      showApp();
+    } else {
+      errEl.textContent = "That username and password did not match.";
+      errEl.hidden = false;
+    }
+  } catch(err) {
+    errEl.textContent = "Could not verify the password in this browser.";
+    errEl.hidden = false;
+  } finally {
+    goBtn.disabled = false;
+    goBtn.textContent = "Sign in";
+  }
+});
+
+document.getElementById("signout").addEventListener("click", () => {
+  try { localStorage.removeItem(AUTH_KEY); } catch(e) {}
+  showGate();
+});
+
+/* ---------------------------------------------------------------
+   Board
+   --------------------------------------------------------------- */
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e) { saved = {}; }
 
@@ -419,7 +735,9 @@ document.getElementById("reset").addEventListener("click", () => {
 document.getElementById("stamp").textContent =
   JOBS.length + " roles tracked · last search " + fmtDay("2026-08-05");
 
-render();
+document.getElementById("who-name").textContent = USER;
+
+if (sessionValid()) showApp(); else showGate();
 </script>
 </body>
 </html>
