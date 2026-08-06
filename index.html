@@ -366,7 +366,7 @@
     text-transform:uppercase;
     line-height:1.7;
   }
-  .src.s-seek,.src.s-linkedin{color:var(--dim);border-color:var(--faint)}
+  .src.s-seek,.src.s-linkedin,.src.s-jobs2web{color:var(--dim);border-color:var(--faint)}
   /* A source tab is a different kind of thing from a field of work. */
   .tab-src{margin-left:auto}
   .note{color:var(--dim);font-size:13.5px;margin-top:7px;max-width:74ch}
@@ -809,6 +809,11 @@ const JOBS = [
   {d:"2026-08-06",posted:"2026-08-06",src:"adzuna",cat:"it",r:"QLD",t:"ServiceNow Developer",c:"Talenza",l:"Brisbane CBD, Brisbane",u:"https://www.adzuna.com.au/details/5829875967?utm_medium=api&utm_source=c6334e22",cv:"Q3 2026",s:"maybe",n:"$234k–$299k · Talenza have been engaged by a financial services organisation to find a ServiceNow Developer to work across a broad SNOW environment. The successful candidate will have experience"},
   {d:"2026-08-06",posted:"2026-08-05",src:"adzuna",cat:"photography",r:"NSW",t:"Videographer – Sydney Thunder",c:"Cricket NSW",l:"Newington, Auburn Area",u:"https://www.adzuna.com.au/details/5827906855?utm_medium=api&utm_source=c6334e22",cv:"Photography",s:"maybe",n:"Newly created role in our Sydney Thunder team Work across the WBBL and BBL Contract role until Feb 2027 ABOUT US Cricket NSW (CNSW) is focused on leading and growing the game throu"},
   {d:"2026-08-06",posted:"2026-08-05",src:"adzuna",cat:"photography",r:"NSW",t:"Social Media Content Creator | Videographer & Editor",c:"Indi Creative",l:"Grose Wold, Hawkesbury Area",u:"https://www.adzuna.com.au/details/5828142184?utm_medium=api&utm_source=c6334e22",cv:"Photography",s:"maybe",n:"Social Media Content Creator, Videographer & Editor Are you constantly thinking of new content ideas, reel concepts, podcast clips and ways to make videos more engaging? We are loo"},
+  {d:"2026-08-06",src:"jobs2web",cat:"it",r:"NSW",t:"Senior Project Manager - Development",c:"Transport for NSW",l:"Sydney, NSW",u:"http://jobs.transport.nsw.gov.au/job/Sydney-Senior-Project-Manager-Development-NSW-2000/1365149166/",cv:"Q3 2026",s:"maybe",n:""},
+  {d:"2026-08-06",src:"jobs2web",cat:"it",r:"NSW",t:"Bus Depot & Infrastructure Lead",c:"Transport for NSW",l:"Sydney, NSW",u:"http://jobs.transport.nsw.gov.au/job/Sydney-Bus-Depot-&-Infrastructure-Lead-NSW-2020/1365215766/",cv:"Q3 2026",s:"maybe",n:""},
+  {d:"2026-08-06",src:"jobs2web",cat:"it",r:"NSW",t:"Network & Geospatial Analyst",c:"Transport for NSW",l:"Macquarie Park, NSW",u:"http://jobs.transport.nsw.gov.au/job/Macquarie-Park-Network-&-Geospatial-Analyst-NSW-2113/1365171766/",cv:"Q3 2026",s:"maybe",n:""},
+  {d:"2026-08-06",src:"jobs2web",cat:"it",r:"NSW",t:"Manager Network & Geospatial Analysis",c:"Transport for NSW",l:"Macquarie Park, NSW",u:"http://jobs.transport.nsw.gov.au/job/Macquarie-Park-Manager-Network-&-Geospatial-Analysis-NSW-2113/1365174066/",cv:"Q3 2026",s:"maybe",n:""},
+  {d:"2026-08-06",src:"jobs2web",cat:"it",r:"NSW",t:"Solution Analyst - Temporary opportunity until November 2027",c:"Transport for NSW",l:"Sydney, NSW",u:"http://jobs.transport.nsw.gov.au/job/Sydney-Solution-Analyst-Temporary-opportunity-until-November-2027-NSW-2000/1365303966/",cv:"Q3 2026",s:"maybe",n:""},
   {d:"2026-08-05",src:"seek",cat:"it",r:"NSW",t:"Service Delivery Manager",c:"Kinetic IT",l:"Sydney · Hybrid",u:"https://www.seek.com.au/job/93766598",cv:"Aug 2026",s:"apply",n:"Managed services provider. ITIL service desk, SLAs, governance meetings, commercial reporting. Fits the move toward delivery and IT management."},
   {d:"2026-08-05",src:"seek",cat:"it",r:"QLD",t:"Systems & Network Engineer (Project Services)",c:"Humanised Group",l:"Brisbane QLD · Hybrid",u:"https://www.seek.com.au/job/93765955",cv:"Q3 2026",s:"apply",n:"MSP delivering end-to-end infrastructure projects. Fortinet, Cisco Meraki, Azure, M365. Up to $125k + super, below the $150k relocation threshold."},
   {d:"2026-08-05",src:"seek",cat:"it",r:"NSW",t:"PMO Lead",c:"Ericsson",l:"Sydney",u:"https://www.seek.com.au/job/93744675",cv:"Aug 2026",s:"maybe",n:"Telecom transformation programs, 5G core and cloud. Strong industry fit but asks for 8+ years specifically in PMO or program controls."},
@@ -884,7 +889,8 @@ const CATS = {
                 src:"adzuna"}
 };
 
-const SRC_LABEL = {seek:"Seek", linkedin:"LinkedIn", adzuna:"Adzuna", other:"Other"};
+const SRC_LABEL = {seek:"Seek", linkedin:"LinkedIn", adzuna:"Adzuna",
+                   jobs2web:"TfNSW", indeed:"Indeed", other:"Other"};
 
 /* Sources that own a tab of their own. */
 const SRC_TABS = new Set(Object.values(CATS).filter(c => c.src).map(c => c.src));

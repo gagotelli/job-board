@@ -87,8 +87,53 @@ function parseIndeed(text) {
   }
 }
 
+/* SuccessFactors / jobs2web alerts (Transport for NSW and other employers on
+ * that platform) send HTML only — no usable plain-text part. Each listing is
+ * a single anchor:
+ *
+ *   <a class="agentjoblink" href="…/job/…/1365149166/?from=email&refid=…">
+ *     Senior Project Manager - Development - Sydney, NSW, AU, 2000</a>
+ *
+ * Feed this one the HTML body rather than the plain text.
+ */
+function parseJobs2web(html, employer = "Transport for NSW") {
+  const out = [];
+  const anchor = /<a[^>]*class="agentjoblink"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const entities = s => String(s)
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ");
+
+  let m;
+  while ((m = anchor.exec(html)) !== null) {
+    // Those query strings carry a per-recipient tracking id. Drop them —
+    // this file ends up in a public repo.
+    const url = entities(m[1]).split("?")[0];
+    const label = clean(entities(m[2].replace(/<[^>]*>/g, "")));
+
+    // "Title - Suburb, NSW, AU, 2000" — titles contain " - " themselves, so
+    // anchor on the trailing state/country/postcode and take the last split.
+    const parts = label.match(/^(.*)\s+-\s+([^,]+),\s*([A-Z]{2,3}),\s*AU,\s*\d+$/);
+    if (!parts) continue;
+
+    out.push({
+      d: todayISO(),
+      src: "jobs2web",
+      cat: CAT,
+      r: parts[3].toUpperCase(),
+      t: clean(parts[1]),
+      c: employer,
+      l: clean(parts[2]) + ", " + parts[3].toUpperCase(),
+      u: url,
+      cv: CV,
+      s: "maybe",
+      n: ""
+    });
+  }
+  return out;
+}
+
 /* Only verified parsers belong here. */
-const PARSERS = { indeed: parseIndeed };
+const PARSERS = { indeed: parseIndeed, jobs2web: parseJobs2web };
 
 if (!SOURCE || !PARSERS[SOURCE]) {
   console.error(
