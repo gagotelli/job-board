@@ -56,6 +56,42 @@ Search terms live in the `STREAMS` block at the top of
 `scripts/sync-jobs.mjs`. Add or remove terms there. `MAX_DAYS_OLD` (default
 14) sets how far back each query reaches.
 
+## Job-alert emails (Seek, LinkedIn, Indeed, Jora)
+
+Those boards cannot be queried directly — all four return 403 to automated
+requests and their terms prohibit scraping. The channel they *do* offer is
+job alert emails, and those can be parsed:
+
+```bash
+# save the alert's PLAIN TEXT body to body.txt, then
+node scripts/parse-alert.mjs --source indeed --cat it --region NSW < body.txt > parsed.json
+node scripts/sync-jobs.mjs --merge parsed.json
+```
+
+`--merge` de-duplicates against everything already tracked (URL, and title +
+employer + state) and re-renders `index.html`.
+
+**Only `indeed` has a parser.** Each board formats its alert differently, and
+a parser can only be written against a real sample. Asking for a source that
+has none exits with an error rather than guessing a layout and producing
+entries that link nowhere. To add one: forward a real alert, work out its
+block structure, add a function to `PARSERS` in `scripts/parse-alert.mjs`.
+
+Parsed listings go through the same title-relevance test as the API sync
+(`scripts/streams.mjs`). This matters — a "jobs picked for you" mail is a
+recommendation feed, not a saved search, and without the filter it drops
+personal trainers and brand ambassadors onto the board.
+
+### Running it daily
+
+This needs a scheduled agent with access to the mailbox, which cannot be
+created from a CLI session — the Routine would fire without connector tools.
+Create it from the **Routines UI on claude.ai**, attach the **Gmail**
+connector, and schedule it daily. Prompt it to: search
+`from:(seek.com.au OR linkedin.com OR indeed.com OR jora.com) newer_than:1d`,
+ignore anything that is not a job-listing alert, run the two commands above
+per alert, and commit to `main` only if something changed.
+
 ## Adding jobs by hand
 
 Append an object to `data/jobs.json`, then `--render-only`:
