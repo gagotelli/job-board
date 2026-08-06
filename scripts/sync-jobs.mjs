@@ -15,11 +15,13 @@
  *   node scripts/sync-jobs.mjs --render-only re-render HTML from the JSON
  *   node scripts/sync-jobs.mjs --dry-run     show what would change, write nothing
  *   node scripts/sync-jobs.mjs --prune       drop off-topic and duplicate imports
+ *   node scripts/sync-jobs.mjs --merge f.json add entries parsed from an alert email
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { STREAMS } from "./streams.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const JSON_PATH = path.join(ROOT, "data", "jobs.json");
@@ -29,47 +31,15 @@ const args = new Set(process.argv.slice(2));
 const RENDER_ONLY = args.has("--render-only");
 const DRY_RUN = args.has("--dry-run");
 const PRUNE = args.has("--prune");
+const MERGE_FILE = (() => {
+  const a = process.argv.slice(2);
+  const i = a.indexOf("--merge");
+  return i === -1 ? null : a[i + 1];
+})();
 
 /* How far back to ask for. Matches the 14-day window the board works to. */
 const MAX_DAYS_OLD = 14;
 
-/* Which searches feed which tab.
- *
- * `terms` are what gets sent to Adzuna, which matches against the whole ad
- * body — so "tennis" alone pulls in every golf club and hotel that mentions
- * a tennis court in its perks. `match` is the guard: a result is only kept
- * if its TITLE matches, which is what actually keeps a stream on topic.
- * Widen a stream by adding terms; keep it honest by widening `match` too. */
-const STREAMS = [
-  {
-    cat: "it",
-    cv: "Q3 2026",
-    regions: { NSW: "New South Wales", QLD: "Queensland" },
-    terms: [
-      "network engineer",
-      "systems engineer",
-      "service delivery manager",
-      "IT project manager",
-      "infrastructure engineer",
-      "IT manager"
-    ],
-    match: /\b(IT|ICT|network|networking|system|systems|infrastructure|cloud|server|devops|SRE|technical|technology|telecom|telecommunications|telco|broadband|NBN|fibre|fiber|wireless|VoIP|engineer|engineering|architect|analyst|administrator|support|helpdesk|help ?desk|service desk|delivery|project manager|program manager|security|cyber|data ?cent(re|er)|platform|application|software|developer|programmer|database|DBA|storage|backup|virtualisation|virtualization|automation|integration|Azure|AWS|M365|Microsoft|Cisco|VMware|Citrix|Linux)\b/i
-  },
-  {
-    cat: "photography",
-    cv: "Photography",
-    regions: { NSW: "New South Wales" },
-    terms: ["photographer", "photography", "photo editor", "videographer"],
-    match: /\b(photograph(y|er|ic)?|photo|videograph(y|er)|cinematograph(y|er)|camera|retoucher)\b/i
-  },
-  {
-    cat: "tennis",
-    cv: "Tennis",
-    regions: { NSW: "New South Wales" },
-    terms: ["tennis coach", "tennis instructor", "tennis"],
-    match: /\btennis\b/i
-  }
-];
 
 const APP_ID = process.env.ADZUNA_APP_ID;
 const APP_KEY = process.env.ADZUNA_APP_KEY;
@@ -220,6 +190,31 @@ const isImported = j => {
 
 if (RENDER_ONLY) {
   console.log(`Rendered ${render(existing)} jobs into index.html`);
+  process.exit(0);
+}
+
+if (MERGE_FILE) {
+  const incoming = JSON.parse(fs.readFileSync(MERGE_FILE, "utf8"));
+  const seenUrl = new Set(existing.map(j => j.u));
+  const seenJob = new Set(existing.map(sameJob));
+  const fresh = [];
+  for (const j of incoming) {
+    if (!j.u || !j.t || !j.c) continue;
+    if (seenUrl.has(j.u) || seenJob.has(sameJob(j))) continue;
+    seenUrl.add(j.u); seenJob.add(sameJob(j));
+    fresh.push(j);
+  }
+  if (!fresh.length) {
+    console.log(`Nothing new in ${MERGE_FILE} (${incoming.length} offered).`);
+    process.exit(0);
+  }
+  console.log(`Adding ${fresh.length} of ${incoming.length} from ${MERGE_FILE}:`);
+  for (const j of fresh) console.log(`  [${j.src}/${j.cat}] ${j.t} — ${j.c}`);
+  if (DRY_RUN) { console.log("\n--dry-run: nothing written."); process.exit(0); }
+  const merged = [...existing, ...fresh];
+  fs.writeFileSync(JSON_PATH, JSON.stringify(merged, null, 2) + "\n");
+  console.log(`Wrote ${merged.length} jobs to data/jobs.json`);
+  console.log(`Rendered ${render(merged)} jobs into index.html`);
   process.exit(0);
 }
 
