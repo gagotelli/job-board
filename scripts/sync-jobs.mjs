@@ -117,6 +117,7 @@ function toEntry(raw, { cat, cv, region }) {
   return {
     d: todayISO(),                                   // date this sync found it
     posted,                                          // date the ad went up
+    src: "adzuna",                                   // which feed it came from
     cat,
     r: region,
     t: strip(title),
@@ -166,6 +167,7 @@ function toLiteral(j) {
   const f = [
     `d:"${esc(j.d)}"`,
     j.posted ? `posted:"${esc(j.posted)}"` : null,
+    j.src ? `src:"${esc(j.src)}"` : null,
     `cat:"${esc(j.cat)}"`,
     `r:"${esc(j.r)}"`,
     `t:"${esc(j.t)}"`,
