@@ -354,6 +354,8 @@
   }
   .meta .co{color:var(--text)}
   .cv{color:var(--link)}
+  .age{color:var(--faint)}
+  .age.stale{color:var(--hold)}
   .note{color:var(--dim);font-size:13.5px;margin-top:7px;max-width:74ch}
 
   .acts{display:flex;gap:5px;padding:15px 16px 15px 0;flex-shrink:0}
@@ -504,7 +506,7 @@
 
 <script>
 const JOBS = [
-  // ---- 5 Aug 2026 ----
+  // Generated from data/jobs.json by scripts/sync-jobs.mjs — do not edit by hand.
   {d:"2026-08-05",cat:"it",r:"NSW",t:"Service Delivery Manager",c:"Kinetic IT",l:"Sydney · Hybrid",u:"https://www.seek.com.au/job/93766598",cv:"Aug 2026",s:"apply",n:"Managed services provider. ITIL service desk, SLAs, governance meetings, commercial reporting. Fits the move toward delivery and IT management."},
   {d:"2026-08-05",cat:"it",r:"QLD",t:"Systems & Network Engineer (Project Services)",c:"Humanised Group",l:"Brisbane QLD · Hybrid",u:"https://www.seek.com.au/job/93765955",cv:"Q3 2026",s:"apply",n:"MSP delivering end-to-end infrastructure projects. Fortinet, Cisco Meraki, Azure, M365. Up to $125k + super, below the $150k relocation threshold."},
   {d:"2026-08-05",cat:"it",r:"NSW",t:"PMO Lead",c:"Ericsson",l:"Sydney",u:"https://www.seek.com.au/job/93744675",cv:"Aug 2026",s:"maybe",n:"Telecom transformation programs, 5G core and cloud. Strong industry fit but asks for 8+ years specifically in PMO or program controls."},
@@ -542,8 +544,6 @@ const JOBS = [
   {d:"2026-08-05",cat:"it",r:"QLD",t:"Service Design Architect",c:"Peoplebank QLD",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93740705",cv:"Aug 2026",s:"skip",n:"Service design architecture specialism. Also listed by Randstad and Capital Talent."},
   {d:"2026-08-05",cat:"it",r:"QLD",t:"Service Design Architect",c:"Randstad Digital",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93746317",cv:"Aug 2026",s:"skip",n:"Duplicate of the Peoplebank listing."},
   {d:"2026-08-05",cat:"it",r:"QLD",t:"Service Design Architect (2 roles)",c:"Capital Talent Consulting",l:"Brisbane QLD",u:"https://www.seek.com.au/job/93746460",cv:"Aug 2026",s:"skip",n:"Duplicate of the Peoplebank listing."},
-
-  // ---- 4 Aug 2026 ----
   {d:"2026-08-04",cat:"it",r:"NSW",t:"Program Manager",c:"Talent International",l:"North Sydney · Hybrid",u:"https://www.seek.com.au/job/93746889",cv:"Aug 2026",s:"apply",n:"9-month contract, up to $1,040/day inc super. Networking and telecom delivery experience preferred, PMP regarded not required."},
   {d:"2026-08-04",cat:"it",r:"NSW",t:"Manager Enterprise Applications (24-mth FTC)",c:"BAI Communications",l:"North Sydney · Hybrid",u:"https://www.seek.com.au/job/93740501",cv:"Aug 2026",s:"apply",n:"Telecommunications and broadcast. Blends people leadership with application delivery and vendor management."},
   {d:"2026-08-04",cat:"it",r:"NSW",t:"YOS Meraki Engineer",c:"Burgeon IT Services",l:"Sydney · Hybrid",u:"https://www.linkedin.com/jobs/view/4446606552/",cv:"Q3 2026",s:"apply",n:"LinkedIn listing, contract. Direct match to the Meraki estate work. Description would not load without signing in."},
@@ -551,8 +551,6 @@ const JOBS = [
   {d:"2026-08-04",cat:"it",r:"NSW",t:"Enterprise Applications Program Manager",c:"Precision Sourcing",l:"Sydney · Hybrid",u:"https://www.seek.com.au/job/93742034",cv:"Aug 2026",s:"skip",n:"$1,274/day but the ad explicitly rules out program managers from infrastructure or network backgrounds."},
   {d:"2026-08-04",cat:"it",r:"NSW",t:"IT Project Manager — ERP",c:"West Recruitment",l:"Blacktown, Sydney",u:"https://www.seek.com.au/job/93730717",cv:"Aug 2026",s:"skip",n:"Pronto XI ERP implementation, onsite five days a week in Blacktown."},
   {d:"2026-08-04",cat:"it",r:"QLD",t:"Implementation Manager (Financial Advice Tech)",c:"Allura Partners",l:"Brisbane QLD · Hybrid",u:"https://www.seek.com.au/job/93737840",cv:"Aug 2026",s:"skip",n:"Package up to $170k but needs an Australian financial advice background."},
-
-  // ---- 3 Aug 2026 ----
   {d:"2026-08-03",cat:"it",r:"NSW",t:"Technical Delivery Manager",c:"INDEX Consultants",l:"Sydney",u:"https://www.seek.com.au/job/93721506",cv:"Aug 2026",s:"apply",n:"From the 3 Aug shortlist."},
   {d:"2026-08-03",cat:"it",r:"NSW",t:"ICT Project Manager",c:"Applied Business Technology (ABT Group)",l:"Sydney",u:"https://www.seek.com.au/job/93719564",cv:"Aug 2026",s:"apply",n:"$95k–$115k. Also listed on Indeed."},
   {d:"2026-08-03",cat:"it",r:"NSW",t:"Client Implementation Manager",c:"Ralston Recruitment",l:"Sydney CBD",u:"https://www.seek.com.au/job/93710412",cv:"Aug 2026",s:"apply",n:"Leads customer implementations and a small team of implementation consultants."},
@@ -723,6 +721,18 @@ const fmtDay = iso => {
   return dt.toLocaleDateString("en-AU", {weekday:"long", day:"numeric", month:"long"});
 };
 
+/* Age of the advert, not of our record of it. Only listings carrying a
+   real posted date get a badge — nothing is inferred from the found date,
+   because those two diverge the moment older roles are imported. */
+const STALE_DAYS = 14;
+const ageOf = j => {
+  if (!j.posted) return null;
+  const days = Math.floor((Date.now() - new Date(j.posted + "T00:00:00")) / 86400000);
+  if (!isFinite(days) || days < 0) return null;
+  const text = days === 0 ? "today" : days === 1 ? "1 day old" : days + " days old";
+  return {text, stale: days >= STALE_DAYS};
+};
+
 function render(){
   const list = document.getElementById("list");
 
@@ -775,12 +785,14 @@ function render(){
       const st = stateOf(j);
       const btn = (k, txt) =>
         `<button class="act a-${k}" data-id="${encodeURIComponent(idOf(j))}" data-set="${k}" aria-pressed="${st===k}">${txt}</button>`;
+      const age = ageOf(j);
       return `<article class="row" data-s="${st}">
         <div class="rail"></div>
         <div class="body">
           <h3 class="title"><a href="${j.u}" target="_blank" rel="noopener">${j.t}</a></h3>
           <div class="meta">
-            <span class="co">${j.c}</span><span>${j.l}</span><span class="cv">CV: ${j.cv}</span>
+            <span class="co">${j.c}</span><span>${j.l}</span><span class="cv">CV: ${j.cv}</span>${
+              age ? `<span class="age${age.stale ? " stale" : ""}">${age.text}</span>` : ""}
           </div>
           <p class="note">${j.n}</p>
         </div>
@@ -841,9 +853,11 @@ document.getElementById("reset").addEventListener("click", () => {
   saved = {}; persist(); render();
 });
 
+/* Derived from the data, so it stays honest as the board is synced. */
+const lastFound = JOBS.reduce((a, j) => (j.d > a ? j.d : a), "");
 document.getElementById("stamp").textContent =
   JOBS.length + " roles tracked across " + Object.keys(CATS).length +
-  " streams · last search " + fmtDay("2026-08-05");
+  " streams" + (lastFound ? " · last added " + fmtDay(lastFound) : "");
 
 document.getElementById("who-name").textContent = USER;
 

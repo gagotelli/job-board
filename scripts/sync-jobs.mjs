@@ -1,0 +1,236 @@
+#!/usr/bin/env node
+/**
+ * Pulls new listings into data/jobs.json, then regenerates the JOBS array
+ * inside index.html from it.
+ *
+ * data/jobs.json is the source of truth. index.html is generated output —
+ * edit the JSON (or your notes in it), never the array in the HTML, or the
+ * next sync will overwrite you.
+ *
+ * Existing entries are never modified and never deleted. A listing already
+ * present (matched on URL) is left exactly as it is, so hand-written notes
+ * and status changes survive every sync.
+ *
+ *   node scripts/sync-jobs.mjs               fetch + merge + render
+ *   node scripts/sync-jobs.mjs --render-only re-render HTML from the JSON
+ *   node scripts/sync-jobs.mjs --dry-run     show what would be added
+ */
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const JSON_PATH = path.join(ROOT, "data", "jobs.json");
+const HTML_PATH = path.join(ROOT, "index.html");
+
+const args = new Set(process.argv.slice(2));
+const RENDER_ONLY = args.has("--render-only");
+const DRY_RUN = args.has("--dry-run");
+
+/* How far back to ask for. Matches the 14-day window the board works to. */
+const MAX_DAYS_OLD = 14;
+
+/* Which searches feed which tab. Add terms here to widen a stream. */
+const STREAMS = [
+  {
+    cat: "it",
+    cv: "Q3 2026",
+    regions: { NSW: "New South Wales", QLD: "Queensland" },
+    terms: [
+      "network engineer",
+      "systems engineer",
+      "service delivery manager",
+      "IT project manager",
+      "infrastructure engineer",
+      "IT manager"
+    ]
+  },
+  {
+    cat: "photography",
+    cv: "Photography",
+    regions: { NSW: "New South Wales" },
+    terms: ["photographer", "photography assistant", "photo editor"]
+  },
+  {
+    cat: "tennis",
+    cv: "Tennis",
+    regions: { NSW: "New South Wales" },
+    terms: ["tennis coach", "tennis"]
+  }
+];
+
+const APP_ID = process.env.ADZUNA_APP_ID;
+const APP_KEY = process.env.ADZUNA_APP_KEY;
+
+const load = () => JSON.parse(fs.readFileSync(JSON_PATH, "utf8"));
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+/* ------------------------------------------------------------------ fetch */
+
+async function search(term, whereLabel) {
+  const url = new URL("https://api.adzuna.com/v1/api/jobs/au/search/1");
+  url.searchParams.set("app_id", APP_ID);
+  url.searchParams.set("app_key", APP_KEY);
+  url.searchParams.set("results_per_page", "50");
+  url.searchParams.set("what", term);
+  url.searchParams.set("where", whereLabel);
+  url.searchParams.set("max_days_old", String(MAX_DAYS_OLD));
+  url.searchParams.set("content-type", "application/json");
+
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) {
+    throw new Error(`Adzuna ${res.status} ${res.statusText} for "${term}" in ${whereLabel}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data.results) ? data.results : [];
+}
+
+/* Adzuna's shape is not guaranteed, so read every field defensively. */
+function toEntry(raw, { cat, cv, region }) {
+  const url = raw.redirect_url;
+  const title = raw.title;
+  if (!url || !title) return null;
+
+  const strip = s => String(s).replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+  const posted = raw.created ? String(raw.created).slice(0, 10) : "";
+
+  let salary = "";
+  if (raw.salary_min && raw.salary_max) {
+    const k = n => "$" + Math.round(n / 1000) + "k";
+    salary = raw.salary_min === raw.salary_max
+      ? k(raw.salary_min)
+      : `${k(raw.salary_min)}–${k(raw.salary_max)}`;
+  }
+
+  return {
+    d: todayISO(),                                   // date this sync found it
+    posted,                                          // date the ad went up
+    cat,
+    r: region,
+    t: strip(title),
+    c: strip(raw.company?.display_name || "Unknown"),
+    l: strip(raw.location?.display_name || region),
+    u: url,
+    cv,
+    s: "maybe",                                      // everything lands unread
+    n: [salary, strip(raw.description || "").slice(0, 180)].filter(Boolean).join(" · ")
+  };
+}
+
+async function fetchAll() {
+  const found = [];
+  const problems = [];
+
+  for (const stream of STREAMS) {
+    for (const [region, whereLabel] of Object.entries(stream.regions)) {
+      for (const term of stream.terms) {
+        try {
+          const results = await search(term, whereLabel);
+          for (const raw of results) {
+            const entry = toEntry(raw, { cat: stream.cat, cv: stream.cv, region });
+            if (entry) found.push(entry);
+          }
+          // Be a considerate API citizen.
+          await new Promise(r => setTimeout(r, 350));
+        } catch (err) {
+          problems.push(err.message);
+        }
+      }
+    }
+  }
+  return { found, problems };
+}
+
+/* ----------------------------------------------------------------- render */
+
+const esc = s => String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+function toLiteral(j) {
+  const f = [
+    `d:"${esc(j.d)}"`,
+    j.posted ? `posted:"${esc(j.posted)}"` : null,
+    `cat:"${esc(j.cat)}"`,
+    `r:"${esc(j.r)}"`,
+    `t:"${esc(j.t)}"`,
+    `c:"${esc(j.c)}"`,
+    `l:"${esc(j.l)}"`,
+    `u:"${esc(j.u)}"`,
+    `cv:"${esc(j.cv)}"`,
+    `s:"${esc(j.s)}"`,
+    `n:"${esc(j.n)}"`
+  ].filter(Boolean);
+  return "  {" + f.join(",") + "}";
+}
+
+function render(jobs) {
+  const html = fs.readFileSync(HTML_PATH, "utf8");
+  const open = "const JOBS = [";
+  const close = "\n];";
+  const i = html.indexOf(open);
+  const k = html.indexOf(close, i);
+  if (i === -1 || k === -1) throw new Error("Could not find the JOBS array in index.html");
+
+  // Newest day first, so the file reads the way the board does.
+  const sorted = [...jobs].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
+
+  const banner =
+    "\n  // Generated from data/jobs.json by scripts/sync-jobs.mjs — do not edit by hand.\n";
+  const out =
+    html.slice(0, i + open.length) + banner +
+    sorted.map(toLiteral).join(",\n") +
+    html.slice(k);
+
+  fs.writeFileSync(HTML_PATH, out);
+  return sorted.length;
+}
+
+/* ------------------------------------------------------------------- main */
+
+const existing = load();
+
+if (RENDER_ONLY) {
+  console.log(`Rendered ${render(existing)} jobs into index.html`);
+  process.exit(0);
+}
+
+if (!APP_ID || !APP_KEY) {
+  console.log(
+    "No ADZUNA_APP_ID / ADZUNA_APP_KEY set — skipping fetch.\n" +
+    "Get free credentials at https://developer.adzuna.com/ and add them as\n" +
+    "repository secrets (Settings -> Secrets and variables -> Actions).\n" +
+    "Until then the board keeps whatever is already in data/jobs.json."
+  );
+  process.exit(0);
+}
+
+const { found, problems } = await fetchAll();
+
+const seen = new Set(existing.map(j => j.u));
+const fresh = [];
+for (const j of found) {
+  if (seen.has(j.u)) continue;   // already tracked, leave it untouched
+  seen.add(j.u);                 // and de-dupe within this run
+  fresh.push(j);
+}
+
+for (const p of problems) console.warn("warning: " + p);
+
+if (!fresh.length) {
+  console.log(`No new listings (checked ${found.length} results). Nothing to commit.`);
+  process.exit(0);
+}
+
+console.log(`Found ${fresh.length} new listings from ${found.length} results:`);
+for (const j of fresh.slice(0, 20)) console.log(`  [${j.cat}/${j.r}] ${j.t} — ${j.c}`);
+if (fresh.length > 20) console.log(`  …and ${fresh.length - 20} more`);
+
+if (DRY_RUN) {
+  console.log("\n--dry-run: nothing written.");
+  process.exit(0);
+}
+
+const merged = [...existing, ...fresh];
+fs.writeFileSync(JSON_PATH, JSON.stringify(merged, null, 2) + "\n");
+console.log(`Wrote ${merged.length} jobs to data/jobs.json`);
+console.log(`Rendered ${render(merged)} jobs into index.html`);
