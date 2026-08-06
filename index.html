@@ -504,6 +504,11 @@
   <button class="filt reg" data-r="all" aria-pressed="true">All states</button>
   <button class="filt reg" data-r="NSW" aria-pressed="false">NSW</button>
   <button class="filt reg" data-r="QLD" aria-pressed="false">QLD</button>
+  <span class="vdiv vdiv-cat"></span>
+  <button class="filt strm" data-c="all" aria-pressed="true">All streams</button>
+  <button class="filt strm" data-c="it" aria-pressed="false">IT</button>
+  <button class="filt strm" data-c="photography" aria-pressed="false">Photography</button>
+  <button class="filt strm" data-c="tennis" aria-pressed="false">Tennis</button>
   <span class="spacer"></span>
   <input class="search" id="q" type="search" placeholder="filter by title, company…" aria-label="Filter jobs">
 </div>
@@ -874,9 +879,16 @@ const CATS = {
 
 const SRC_LABEL = {seek:"Seek", linkedin:"LinkedIn", adzuna:"Adzuna", other:"Other"};
 
-/* Which jobs belong to a tab: a source tab filters on origin, a category
-   tab on field of work. */
-const inTab = (j, k) => CATS[k].src ? j.src === CATS[k].src : j.cat === k;
+/* Sources that own a tab of their own. */
+const SRC_TABS = new Set(Object.values(CATS).filter(c => c.src).map(c => c.src));
+
+/* Which jobs belong to a tab. A source tab filters on origin; a category tab
+   filters on field of work AND excludes any source that has its own tab, so
+   nothing is listed twice. Category tabs are therefore the hand-curated
+   finds, and each feed keeps to its own tab. */
+const inTab = (j, k) => CATS[k].src
+  ? j.src === CATS[k].src
+  : j.cat === k && !SRC_TABS.has(j.src);
 
 /* ---------------------------------------------------------------
    Theme. The stored preference is auto | light | dark; "auto"
@@ -1015,7 +1027,7 @@ const persist = () => {
 const idOf = j => j.u + "::" + j.t;
 const stateOf = j => saved[idOf(j)] || j.s;
 
-let filter = "all", query = "", cat = "it", region = "all";
+let filter = "all", query = "", cat = "it", region = "all", stream = "all";
 
 const fmtDay = iso => {
   const dt = new Date(iso + "T00:00:00");
@@ -1052,6 +1064,11 @@ function render(){
   document.querySelector(".vdiv").hidden = !multi;
   document.getElementById("eyebrow").innerHTML = CATS[cat].eyebrow;
 
+  // A source tab spans every stream, so it gets a stream filter of its own.
+  const isSrcTab = !!CATS[cat].src;
+  document.querySelectorAll(".filt.strm").forEach(b => { b.hidden = !isSrcTab; });
+  document.querySelector(".vdiv-cat").hidden = !isSrcTab;
+
   const inCat = JOBS.filter(j => inTab(j, cat));
 
   const tally = {apply:0, maybe:0, applied:0, skip:0};
@@ -1065,6 +1082,7 @@ function render(){
   const shown = inCat.filter(j => {
     if (filter !== "all" && stateOf(j) !== filter) return false;
     if (region !== "all" && j.r !== region) return false;
+    if (isSrcTab && stream !== "all" && j.cat !== stream) return false;
     if (q && !(j.t + " " + j.c + " " + j.l).toLowerCase().includes(q)) return false;
     return true;
   });
@@ -1073,12 +1091,20 @@ function render(){
     const name = CATS[cat].label;
     list.innerHTML = inCat.length
       ? '<p class="empty">Nothing matches that filter. Clear the search or pick another status.</p>'
-      : '<p class="empty"><b>No ' + name + ' roles yet</b>' +
-        'This stream is set up and empty — nothing has been added to it.' +
-        '<span class="hint">' + (CATS[cat].src
-          ? 'The daily sync has not brought anything in yet.'
-          : 'Seek and LinkedIn block automated collection, so listings from there are added by hand. ' +
-            'Searching ' + regions.join(" and ") + ' only.') + '</span></p>';
+      : (() => {
+          // Anything in this stream that lives under a feed's own tab.
+          const elsewhere = JOBS.filter(j => j.cat === cat && SRC_TABS.has(j.src)).length;
+          return '<p class="empty"><b>No hand-added ' + name + ' roles</b>' +
+            (elsewhere
+              ? 'The ' + elsewhere + ' ' + name + ' role' + (elsewhere === 1 ? '' : 's') +
+                ' found so far all came from the daily sync, so they sit under the Adzuna tab.' +
+                '<span class="hint">This tab holds roles added by hand from Seek and LinkedIn, ' +
+                'which block automated collection. Filter the Adzuna tab by ' + name +
+                ' to see the synced ones.</span>'
+              : 'Nothing has been added to this stream yet.' +
+                '<span class="hint">Searching ' + regions.join(" and ") + ' only.</span>') +
+            '</p>';
+        })();
     return;
   }
 
@@ -1122,10 +1148,10 @@ document.getElementById("list").addEventListener("click", e => {
   render();
 });
 
-document.querySelectorAll(".filt:not(.reg)").forEach(b => {
+document.querySelectorAll(".filt:not(.reg):not(.strm)").forEach(b => {
   b.addEventListener("click", () => {
     filter = b.dataset.f;
-    document.querySelectorAll(".filt:not(.reg)").forEach(x => x.setAttribute("aria-pressed", x === b));
+    document.querySelectorAll(".filt:not(.reg):not(.strm)").forEach(x => x.setAttribute("aria-pressed", x === b));
     render();
   });
 });
@@ -1138,14 +1164,26 @@ document.querySelectorAll(".filt.reg").forEach(b => {
   });
 });
 
+document.querySelectorAll(".filt.strm").forEach(b => {
+  b.addEventListener("click", () => {
+    stream = b.dataset.c;
+    document.querySelectorAll(".filt.strm").forEach(x => x.setAttribute("aria-pressed", x === b));
+    render();
+  });
+});
+
 document.querySelectorAll(".tab").forEach(b => {
   b.addEventListener("click", () => {
     cat = b.dataset.cat;
     document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", String(x === b)));
     // A region held from another stream may not exist here, so reset it.
     region = "all";
+    stream = "all";
     document.querySelectorAll(".filt.reg").forEach(x =>
       x.setAttribute("aria-pressed", String(x.dataset.r === "all"))
+    );
+    document.querySelectorAll(".filt.strm").forEach(x =>
+      x.setAttribute("aria-pressed", String(x.dataset.c === "all"))
     );
     render();
   });
