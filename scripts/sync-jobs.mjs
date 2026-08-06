@@ -13,7 +13,8 @@
  *
  *   node scripts/sync-jobs.mjs               fetch + merge + render
  *   node scripts/sync-jobs.mjs --render-only re-render HTML from the JSON
- *   node scripts/sync-jobs.mjs --dry-run     show what would be added
+ *   node scripts/sync-jobs.mjs --dry-run     show what would change, write nothing
+ *   node scripts/sync-jobs.mjs --prune       drop off-topic and duplicate imports
  */
 
 import fs from "node:fs";
@@ -27,11 +28,18 @@ const HTML_PATH = path.join(ROOT, "index.html");
 const args = new Set(process.argv.slice(2));
 const RENDER_ONLY = args.has("--render-only");
 const DRY_RUN = args.has("--dry-run");
+const PRUNE = args.has("--prune");
 
 /* How far back to ask for. Matches the 14-day window the board works to. */
 const MAX_DAYS_OLD = 14;
 
-/* Which searches feed which tab. Add terms here to widen a stream. */
+/* Which searches feed which tab.
+ *
+ * `terms` are what gets sent to Adzuna, which matches against the whole ad
+ * body — so "tennis" alone pulls in every golf club and hotel that mentions
+ * a tennis court in its perks. `match` is the guard: a result is only kept
+ * if its TITLE matches, which is what actually keeps a stream on topic.
+ * Widen a stream by adding terms; keep it honest by widening `match` too. */
 const STREAMS = [
   {
     cat: "it",
@@ -44,19 +52,22 @@ const STREAMS = [
       "IT project manager",
       "infrastructure engineer",
       "IT manager"
-    ]
+    ],
+    match: /\b(IT|ICT|network|networking|system|systems|infrastructure|cloud|server|devops|SRE|technical|technology|telecom|telecommunications|telco|broadband|NBN|fibre|fiber|wireless|VoIP|engineer|engineering|architect|analyst|administrator|support|helpdesk|help ?desk|service desk|delivery|project manager|program manager|security|cyber|data ?cent(re|er)|platform|application|software|developer|programmer|database|DBA|storage|backup|virtualisation|virtualization|automation|integration|Azure|AWS|M365|Microsoft|Cisco|VMware|Citrix|Linux)\b/i
   },
   {
     cat: "photography",
     cv: "Photography",
     regions: { NSW: "New South Wales" },
-    terms: ["photographer", "photography assistant", "photo editor"]
+    terms: ["photographer", "photography", "photo editor", "videographer"],
+    match: /\b(photograph(y|er|ic)?|photo|videograph(y|er)|cinematograph(y|er)|camera|retoucher)\b/i
   },
   {
     cat: "tennis",
     cv: "Tennis",
     regions: { NSW: "New South Wales" },
-    terms: ["tennis coach", "tennis"]
+    terms: ["tennis coach", "tennis instructor", "tennis"],
+    match: /\btennis\b/i
   }
 ];
 
@@ -121,6 +132,7 @@ function toEntry(raw, { cat, cv, region }) {
 async function fetchAll() {
   const found = [];
   const problems = [];
+  let offTopic = 0;
 
   for (const stream of STREAMS) {
     for (const [region, whereLabel] of Object.entries(stream.regions)) {
@@ -129,7 +141,11 @@ async function fetchAll() {
           const results = await search(term, whereLabel);
           for (const raw of results) {
             const entry = toEntry(raw, { cat: stream.cat, cv: stream.cv, region });
-            if (entry) found.push(entry);
+            if (!entry) continue;
+            // Adzuna matches the whole ad body, so drop anything whose
+            // title says it belongs to a different line of work.
+            if (stream.match && !stream.match.test(entry.t)) { offTopic++; continue; }
+            found.push(entry);
           }
           // Be a considerate API citizen.
           await new Promise(r => setTimeout(r, 350));
@@ -139,7 +155,7 @@ async function fetchAll() {
       }
     }
   }
-  return { found, problems };
+  return { found, problems, offTopic };
 }
 
 /* ----------------------------------------------------------------- render */
@@ -189,8 +205,53 @@ function render(jobs) {
 
 const existing = load();
 
+/* Adzuna indexes the same advert from several feeds, so one role can arrive
+   under a handful of URLs. Same title + employer + state is the same job. */
+const sameJob = j =>
+  [j.t, j.c, j.r].map(v => String(v).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()).join("|");
+
+/* Auto-imported rows come from Adzuna; anything else was added by hand and
+   is never touched by pruning. */
+const isImported = j => {
+  try { return new URL(j.u).hostname.endsWith("adzuna.com.au"); } catch { return false; }
+};
+
 if (RENDER_ONLY) {
   console.log(`Rendered ${render(existing)} jobs into index.html`);
+  process.exit(0);
+}
+
+if (PRUNE) {
+  const matcher = Object.fromEntries(STREAMS.map(s => [s.cat, s.match]));
+  const kept = [], dropped = [];
+  const seenJob = new Set();
+
+  for (const j of existing) {
+    if (!isImported(j)) { kept.push(j); continue; }        // hand-added, always keep
+    const m = matcher[j.cat];
+    if (m && !m.test(j.t)) { dropped.push([j, "off-topic"]); continue; }
+    const key = sameJob(j);
+    if (seenJob.has(key)) { dropped.push([j, "duplicate"]); continue; }
+    seenJob.add(key);
+    kept.push(j);
+  }
+
+  if (!dropped.length) {
+    console.log("Nothing to prune.");
+    process.exit(0);
+  }
+  const by = {};
+  for (const [j, why] of dropped) by[j.cat + " " + why] = (by[j.cat + " " + why] || 0) + 1;
+  console.log(`Pruning ${dropped.length} of ${existing.length} imported rows:`);
+  for (const [k, n] of Object.entries(by)) console.log(`  ${n}\t${k}`);
+  console.log("\nExamples:");
+  for (const [j, why] of dropped.slice(0, 8)) console.log(`  (${why}) [${j.cat}] ${j.t} — ${j.c}`);
+
+  if (DRY_RUN) { console.log("\n--dry-run: nothing written."); process.exit(0); }
+
+  fs.writeFileSync(JSON_PATH, JSON.stringify(kept, null, 2) + "\n");
+  console.log(`\nWrote ${kept.length} jobs to data/jobs.json`);
+  console.log(`Rendered ${render(kept)} jobs into index.html`);
   process.exit(0);
 }
 
@@ -204,24 +265,30 @@ if (!APP_ID || !APP_KEY) {
   process.exit(0);
 }
 
-const { found, problems } = await fetchAll();
+const { found, problems, offTopic } = await fetchAll();
 
-const seen = new Set(existing.map(j => j.u));
+const seenUrl = new Set(existing.map(j => j.u));
+const seenJob = new Set(existing.filter(isImported).map(sameJob));
 const fresh = [];
+let dupes = 0;
 for (const j of found) {
-  if (seen.has(j.u)) continue;   // already tracked, leave it untouched
-  seen.add(j.u);                 // and de-dupe within this run
+  if (seenUrl.has(j.u)) { dupes++; continue; }   // already tracked, leave it untouched
+  const key = sameJob(j);
+  if (seenJob.has(key)) { dupes++; continue; }   // same role via a different feed
+  seenUrl.add(j.u);
+  seenJob.add(key);
   fresh.push(j);
 }
 
 for (const p of problems) console.warn("warning: " + p);
+console.log(`Results kept ${found.length}, dropped ${offTopic} off-topic, ${dupes} already known or duplicate.`);
 
 if (!fresh.length) {
-  console.log(`No new listings (checked ${found.length} results). Nothing to commit.`);
+  console.log("No new listings. Nothing to commit.");
   process.exit(0);
 }
 
-console.log(`Found ${fresh.length} new listings from ${found.length} results:`);
+console.log(`Found ${fresh.length} new listings:`);
 for (const j of fresh.slice(0, 20)) console.log(`  [${j.cat}/${j.r}] ${j.t} — ${j.c}`);
 if (fresh.length > 20) console.log(`  …and ${fresh.length - 20} more`);
 
